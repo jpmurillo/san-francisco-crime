@@ -1,0 +1,410 @@
+---
+title: "San Francisco Crime Geospatial Analysis"
+author: "Juan Pablo Murillo"
+date: "September 10, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### The Data Source
+
+The dataset is based on Police department incidents in the city of San Francisco for the period 01/01/2003 through 06/12/2017. Note that non-criminal incidents have been removed.
+
+### Most Prevalent Crime Categories and Incident Descriptions Across Time Periods
+
+#### Overall: 2003 - 2017
+*Larceny/Theft* is the most prevalent category while *Grand Theft from Locked Auto* is the most prevalent incident description. Below are the top 20 categories as well as the top 20 Incident Descriptions in the dataset.
+
+```{r, echo=FALSE}
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(ggplot2))
+suppressWarnings(suppressPackageStartupMessages(library(ggmap)))
+suppressWarnings(suppressPackageStartupMessages(library(ggvis)))
+
+
+#####################
+# Data Preparation  #
+#####################
+
+setwd("/Users/jpablom1/Downloads/Police_Department_Incident/")
+
+df = read.csv("Police_Department_Incident.csv", stringsAsFactors = FALSE)
+
+df <- df %>% 
+  rename(Longitude = X,
+         Latitude = Y)
+
+df <- df %>%
+  mutate(DateTime = paste(Date, Time, sep = " "))
+
+df$Date <- as.Date(df$Date, format = "%m/%d/%Y")
+
+df$Hour <- hour(hm(df$Time)) 
+
+df <- df %>%
+  filter(Category != "NON-CRIMINAL")
+
+
+# Most popular Crime Categories - across entire period
+ggplot(df %>%
+         group_by(Category) %>%
+         summarise(Count = n()) %>%
+         arrange(desc(Count)) %>%
+         mutate(Freq = Count / sum(Count)) %>%
+         head(20), aes(x = reorder(Category, Freq), y = Freq)) + 
+  geom_bar(stat = "identity") + 
+  coord_flip() +
+  labs(x = "Crime Categories",
+       y = "Freq of Crimes 2003 - 2017",
+       title = "Crime Distribution by Category (Top 20)")
+```
+
+```{r, echo=FALSE}
+ggplot(df %>%
+         group_by(Descript) %>%
+         summarise(Count = n()) %>%
+         arrange(desc(Count)) %>%
+         mutate(Freq = Count / sum(Count)) %>%
+         head(20), aes(x = reorder(Descript, Freq), y = Freq)) + 
+  geom_bar(stat = "identity") + 
+  coord_flip() +
+  labs(x = "Crime Descriptions",
+       y = "Freq of Crimes 2003 - 2017",
+       title = "Crime Distribution by Description (Top 20)")
+
+df %>% group_by(Category, Descript) %>% summarise(n=n())%>% arrange(desc(n)) %>%head(20)
+```
+
+#### Hourly 
+
+*Larceny/Theft* and *Other Offenses* are consistently the most prevalent crime categories throughout the day. At 1am and 2am, *Assault* joins the previous two categories as a top crime category. 
+
+```{r, echo=FALSE}
+df %>% 
+  group_by(Hour,Category) %>%
+  summarise(Count = n()) %>%
+  arrange(Hour, desc(Count)) %>%
+  group_by(Hour) %>%
+  top_n(2)%>% head(20)
+```
+
+*Grand Theft from Locked Auto* is consistently among the most prominent incident descriptions throughout the day. Other common ones are *Battery*, *Driver's License - Suspended or Revoked*, *Warrant Arrest*, and *Stolen Vehicle*.  
+*Driver's License - Suspended or Revoked* is prevalent during the early hours of the morning. *Stolen Vehicle* is common during the late afternoon. 
+
+```{r, echo=FALSE}
+df %>% 
+  group_by(Hour,Descript) %>%
+  summarise(Count = n()) %>%
+  arrange(Hour, desc(Count)) %>%
+  group_by(Hour) %>%
+  top_n(2) %>% head(20)
+```
+
+#### Days of the Week
+
+When we switch our focus to crime during the week, we see that *LARCENY/THEFT* and *OTHER OFFENSES* are again the most common crime categories.  
+
+*Grand Theft from Locked Auto* is consistenly the most common incident description every day of the week, followed by *Stolen Automobile* and *Battery*.
+
+```{r, echo=FALSE}
+df %>% 
+  group_by(DayOfWeek,Descript) %>%
+  summarise(Count = n()) %>%
+  arrange(DayOfWeek, desc(Count)) %>%
+  group_by(DayOfWeek) %>%
+  top_n(3)
+```
+
+### Police Districts with Highest Crime
+
+The police districts with highest crime incidents are *Southern* and *Mission*. Below we include the Crime Category and Incident Description* distributions for each of the two districts.
+
+```{r, echo=FALSE}
+# District with most number of hits for entire period
+ggplot(df %>%
+         group_by(PdDistrict) %>%
+         summarise(Count = n()) %>%
+         filter(Count > 5)
+       , aes(x = reorder(PdDistrict, Count), y = Count)) + 
+  geom_bar(stat = "identity") + 
+  coord_flip() +
+  labs(x = "Districts",
+       y = "Number of Crimes 2003 - 2017",
+       title = "Total Count of Crimes Per District")
+```
+
+
+#### Distributions of Crime Categories and Incident Descriptions in SOUTHERN
+```{r, echo=FALSE}
+ggplot(df %>% 
+         filter(PdDistrict == "SOUTHERN") %>%
+         group_by(Category) %>%
+         summarise(Count = n()) %>%
+         arrange(desc(Count)), aes(x = reorder(Category, Count), y = Count)) + 
+  geom_bar(stat = "identity") + 
+  coord_flip() +
+  labs(x = "Crime Categories",
+       y = "Number of Crimes 2003 - 2017",
+       title = "Crime Distribution in SOUTHERN by Category")
+
+ggplot(df %>% 
+         filter(PdDistrict == "SOUTHERN") %>%
+         group_by(Descript) %>%
+         summarise(Count = n()) %>%
+         arrange(desc(Count)) %>%
+         head(40), aes(x = reorder(Descript, Count), y = Count)) + 
+  geom_bar(stat = "identity") + 
+  coord_flip() +
+  labs(x = "Crime Categories",
+       y = "Number of Crimes 2003 - 2017",
+       title = "Crime Distribution in SOUTHERN by Description (Top 40)")
+```
+
+#### Distributions of Crime Categories and Incident Descriptions in MISSION
+```{r, echo=FALSE}
+ggplot(df %>% 
+         filter(PdDistrict == "MISSION") %>%
+         group_by(Category) %>%
+         summarise(Count = n()) %>%
+         arrange(desc(Count)), aes(x = reorder(Category, Count), y = Count)) + 
+  geom_bar(stat = "identity") + 
+  coord_flip() +
+  labs(x = "Crime Categories",
+       y = "Number of Crimes 2003 - 2017",
+       title = "Crime Distribution in MISSION by Category")
+
+ggplot(df %>% 
+         filter(PdDistrict == "MISSION") %>%
+         group_by(Descript) %>%
+         summarise(Count = n()) %>%
+         arrange(desc(Count)) %>%
+         head(40), aes(x = reorder(Descript, Count), y = Count)) + 
+  geom_bar(stat = "identity") + 
+  coord_flip() +
+  labs(x = "Crime Categories",
+       y = "Number of Crimes 2003 - 2017",
+       title = "Crime Distribution in MISSION by Description (Top 40)")
+```
+
+
+### Seasonality for Top Categories and Incident Descriptions
+
+#### Categories - Hourly
+We see that *Larceny/Theft* and *Vehicle Theft* peak at noon and later at 6pm.All categories dip after 10pm and begin picking up in the morning. 
+
+#### Categories - Days of the Week
+*Larceny/Theft* increases during Friday and Saturday, and it hits a low on Sunday and Monday. *Assault* remains steady during the week and hits a high all throughout the weekend. *Drug/Narcotic* increases in Wednesdays. 
+
+#### Categories - Monthly
+*Larceny/Theft* is hits highs during the warm months (July through October) and decreases during the winter. *Assault* remains steady most of the year. Dips during Novermber and December (holidays).
+```{r, echo=FALSE}
+ggplot(df %>% 
+         filter(Category %in% c("LARCENY/THEFT", "OTHER OFFENSES", "NON-CRIMINAL", 
+                                "ASSAULT", "VEHICLE THEFT", "DRUG/NARCOTIC")) %>%
+         group_by(Category, Hour) %>%
+         summarise(Count = n()), aes(Hour)) + 
+  geom_line(aes(y = Count, colour = Category))+
+  scale_x_discrete(limits=seq(0,23,2)) +
+  labs(x = "Hour",
+      y = "Hourly Count",
+      title = "Hourly Trends for Top Crime Categories")
+
+ggplot(df %>% 
+         filter(Category %in% c("LARCENY/THEFT", "OTHER OFFENSES", "NON-CRIMINAL", 
+                                "ASSAULT", "VEHICLE THEFT", "DRUG/NARCOTIC")) %>%
+         group_by(Category, weekday = wday(Date)) %>%
+         summarise(Count = n()), aes(weekday)) + 
+  geom_line(aes(y = Count, colour = Category)) +
+  scale_x_discrete(name="Day of the Week", limits=c("Su","Mo","Tu","We","Th","Fr","Sa"))+
+  labs(x = "Day",
+       y = "Daily Count",
+       title = "Daily Trends for Top Crime Categories")
+
+ggplot(df %>% 
+         filter(Category %in% c("LARCENY/THEFT", "OTHER OFFENSES", "NON-CRIMINAL", 
+                                "ASSAULT", "VEHICLE THEFT", "DRUG/NARCOTIC") &
+                  year(Date) <= 2016) %>%
+         group_by(Category, month = month(Date)) %>%
+         summarise(Count = n()), aes(month)) + 
+  geom_line(aes(y = Count, colour = Category)) + 
+  scale_x_discrete(name ="Month", limits=seq(1,12,1))+
+  labs(x = "Month",
+       y = "Montly Count",
+       title = "Monthly Trends for Top Crime Categories")
+```
+
+
+#### Descriptions - Hourly
+We see that *Grand Theft from Locked Auto* peaks at noon and hits a high (twice its level at noon) later at 7pm. All descriptions dip after 10pm and begin picking up in the morning. 
+
+#### Descriptions - Days of the Week
+*Grand Theft from Locked Auto* increases during the weekend. *Driver's License, Suspended or Revoked* is highest on Wednesdays. 
+
+#### Descriptions - Monthly
+All Descriptions except for *Grand Theft from Locked Auto* seem to slightly decrease towards the end of the year. Although *Grand Theft from Locked Auto* fluctuates throughout the year, it is consistently the most common incident description. Overall, the remaining descriptions do not experience much variation throughout the year.
+
+```{r, echo=FALSE}
+ggplot(df %>%
+         filter(Descript %in% c("GRAND THEFT FROM LOCKED AUTO", "DRIVERS LICENSE, SUSPENDED OR REVOKED", "PETTY THEFT OF PROPERTY", 
+                                "STOLEN AUTOMOBILE", "STOLEN AUTOMOBILE", "BATTERY", "WARRANT ARREST")) %>%
+         group_by(Descript, Hour) %>%
+         summarise(Count = n()), aes(Hour)) + 
+  geom_line(aes(y = Count, colour = Descript))+
+  labs(x = "Hour",
+       y = "Hourly Count",
+       title = "Hourly Trends for Top Incident Descriptions")
+
+ggplot(df %>% 
+         filter(Descript %in% c("GRAND THEFT FROM LOCKED AUTO", "DRIVERS LICENSE, SUSPENDED OR REVOKED", "PETTY THEFT OF PROPERTY", 
+                                "STOLEN AUTOMOBILE", "STOLEN AUTOMOBILE", "BATTERY", "WARRANT ARREST")) %>%
+         group_by(Descript, weekday = wday(Date)) %>%
+         summarise(Count = n()), aes(weekday)) + 
+  geom_line(aes(y = Count, colour = Descript)) +
+  scale_x_discrete(name="Day of the Week", limits=c("Su","Mo","Tu","We","Th","Fr","Sa"))+
+  labs(x = "Day",
+       y = "Daily Count",
+       title = "Daily Trends for Top Incident Descriptions")
+
+ggplot(df %>% 
+         filter(Descript %in% c("GRAND THEFT FROM LOCKED AUTO", "DRIVERS LICENSE, SUSPENDED OR REVOKED", "PETTY THEFT OF PROPERTY", 
+                                "STOLEN AUTOMOBILE", "STOLEN AUTOMOBILE", "BATTERY", "WARRANT ARREST")) %>%
+         group_by(Descript, month = month(Date)) %>%
+         summarise(Count = n()), aes(month)) + 
+  geom_line(aes(y = Count, colour = Descript)) + 
+  scale_x_discrete(name ="Month", limits=seq(1,12,1))+
+  labs(x = "Month",
+       y = "Montly Count",
+       title = "Monthly Trends for Top Incident Descriptions")
+```
+
+
+### Heatmaps of Most Prevalent Incident Descriptions (2016)
+
+We've included a few heatmaps relating to some of the top Incident Descriptions. The heatmaps tell us that while the core of criminal activity concentrates in one part of town, the area which appears red in all of the maps below, but they also tell us other insights.  
+
+* *Grand Theft form Locked Auto* is also occuring in Land's End and Richmond.
+* *Petty Theft of Property* happends around Lake Merced Park.
+* *Driver's License, Revoked or Suspended* is a common occurence near Hunter's Point in Southeast San Francisco.
+* *Battery* and *Warrant Arrest* tend to stay on the East side of the City.
+```{r,echo=FALSE}
+# Download the base map
+sf <- get_map(location = "san francisco", zoom = 12, maptype = "roadmap", color = "bw")
+# Draw the heat map
+ggmap(sf, extent = "device") + 
+  geom_density2d(data = df %>% 
+                   filter(year(Date) == 2016 & 
+                            Descript == "GRAND THEFT FROM LOCKED AUTO"), 
+                 aes(x = Longitude, y = Latitude), size = .15) + 
+  stat_density2d(data = df %>% 
+                   filter(year(Date) == 2016 & 
+                            Descript == "GRAND THEFT FROM LOCKED AUTO"), 
+                 aes(x = Longitude, y = Latitude, fill = ..level.., alpha = ..level..), size = 0.02, 
+                 bins = 100, geom = "polygon", contour = TRUE) + 
+  scale_fill_gradient(low = "black", high = "red") + 
+  scale_alpha(range = c(0.15, 0.2), guide = FALSE) +
+  labs(title = "GRAND THEFT FROM LOCKED AUTO")
+
+
+
+# Download the base map
+sf <- get_map(location = "san francisco", zoom = 12, maptype = "roadmap", color = "bw")
+# Draw the heat map
+ggmap(sf, extent = "device") + 
+  geom_density2d(data = df %>% 
+                   filter(year(Date) == 2016 & 
+                            Descript == "PETTY THEFT OF PROPERTY"), 
+                 aes(x = Longitude, y = Latitude), size = .15) + 
+  stat_density2d(data = df %>% 
+                   filter(year(Date) == 2016 & 
+                            Descript == "PETTY THEFT OF PROPERTY"), 
+                 aes(x = Longitude, y = Latitude, fill = ..level.., alpha = ..level..), size = 0.02, 
+                 bins = 100, geom = "polygon", contour = TRUE) + 
+  scale_fill_gradient(low = "black", high = "red") + 
+  scale_alpha(range = c(0.15, 0.2), guide = FALSE) +
+  labs(title="PETTY THEFT OF PROPERTY")
+
+
+# Download the base map
+sf <- get_map(location = "san francisco", zoom = 12, maptype = "roadmap", color = "bw")
+# Draw the heat map
+ggmap(sf, extent = "device") + 
+  geom_density2d(data = df %>% 
+                   filter(year(Date) == 2016 & 
+                            Descript == "DRIVERS LICENSE, SUSPENDED OR REVOKED"), 
+                 aes(x = Longitude, y = Latitude), size = .15) + 
+  stat_density2d(data = df %>% 
+                   filter(year(Date) == 2016 & 
+                            Descript == "DRIVERS LICENSE, SUSPENDED OR REVOKED"), 
+                 aes(x = Longitude, y = Latitude, fill = ..level.., alpha = ..level..), size = 0.02, 
+                 bins = 100, geom = "polygon", contour = TRUE) + 
+  scale_fill_gradient(low = "black", high = "red") + 
+  scale_alpha(range = c(0.1, 0.15), guide = FALSE)+
+  labs(title="DRIVERS LICENSE, SUSPENDED OR REVOKED")
+
+
+
+sf <- get_map(location = "san francisco", zoom = 12, maptype = "roadmap", color = "bw")
+# Draw the heat map
+ggmap(sf, extent = "device") + 
+  geom_density2d(data = df %>% 
+                   filter(year(Date) == 2016 & 
+                            Descript == "STOLEN AUTOMOBILE"), 
+                 aes(x = Longitude, y = Latitude), size = .15) + 
+  stat_density2d(data = df %>% 
+                   filter(year(Date) == 2016 & 
+                            Descript == "STOLEN AUTOMOBILE"), 
+                 aes(x = Longitude, y = Latitude, fill = ..level.., alpha = ..level..), size = 0.02, 
+                 bins = 100, geom = "polygon", contour = TRUE) + 
+  scale_fill_gradient(low = "black", high = "red") + 
+  scale_alpha(range = c(0.05, 0.15), guide = FALSE)+
+  labs(title="STOLEN AUTOMOBILE")
+
+
+
+sf <- get_map(location = "san francisco", zoom = 12, maptype = "roadmap", color = "bw")
+# Draw the heat map
+ggmap(sf, extent = "device") + 
+  geom_density2d(data = df %>% 
+                   filter(year(Date) == 2016 & 
+                            Descript == "BATTERY"), 
+                 aes(x = Longitude, y = Latitude), size = .15) + 
+  stat_density2d(data = df %>% 
+                   filter(year(Date) == 2016 & 
+                            Descript == "BATTERY"), 
+                 aes(x = Longitude, y = Latitude, fill = ..level.., alpha = ..level..), size = 0.02, 
+                 bins = 100, geom = "polygon", contour = TRUE) + 
+  scale_fill_gradient(low = "black", high = "red") + 
+  scale_alpha(range = c(0.1, 0.15), guide = FALSE)+
+  labs(title="BATTERY")
+
+
+
+sf <- get_map(location = "san francisco", zoom = 12, maptype = "roadmap", color = "bw")
+# Draw the heat map
+ggmap(sf, extent = "device") + 
+  geom_density2d(data = df %>% 
+                   filter(year(Date) == 2016 & 
+                            Descript == "WARRANT ARREST"), 
+                 aes(x = Longitude, y = Latitude), size = .15) + 
+  stat_density2d(data = df %>% 
+                   filter(year(Date) == 2016 & 
+                            Descript == "WARRANT ARREST"), 
+                 aes(x = Longitude, y = Latitude, fill = ..level.., alpha = ..level..), size = 0.02, 
+                 bins = 100, geom = "polygon", contour = TRUE) + 
+  scale_fill_gradient(low = "black", high = "red") + 
+  scale_alpha(range = c(0.15, 0.2), guide = FALSE)+
+  labs(title="WARRANT ARREST")
+
+```
+
+### Predicting Crime Location
+
+The challenge: Calssifying a two-dimensional variable  
+
+Approach 1: Building two separate models, one to predict Longitude, one to predict Latitude. The downside: The model is able to predict the obvious, that the core of the data points are in San Francisco downtown (the red area in the heatmaps above).  
+
+Approach 2: Predicting addresses, for addresses which have at least 100 historical reports.Because the model takes Incident Description as one of the predictor variables, we need to build a separate model for each of the categories. Running the classification algorithms is extremely computationally expensive.
